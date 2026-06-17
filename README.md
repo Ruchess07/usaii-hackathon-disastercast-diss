@@ -74,10 +74,7 @@ disastercast/
 |---------|--------|----------|
 | FEMA OpenFEMA HousingAssistanceOwners | fema.gov/about/openfema/data-sets | Houston and LA damage by event — 159,412 records |
 | FEMA DisasterDeclarationsSummaries | fema.gov/about/openfema/data-sets | Disaster metadata, incident types, dates |
-| FEMA DR-4856 | fema.gov/disaster/4856 | 2025 LA Palisades + Eaton fires |
 | Harris County HCFCD | hcfcd.org | Houston flood zone infrastructure |
-| LA County CEO Dashboard | ceo.lacounty.gov | 2025 wildfire displacement and social cost |
-| Rice Kinder Institute | kinder.rice.edu | Multi-event Houston flood analysis |
 | OECD 2025 | oecd.org | AI and disaster damage cost methodology |
 | Urban Institute | urban.org | Disaster to homelessness causal research |
 
