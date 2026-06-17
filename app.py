@@ -3,17 +3,17 @@ app.py — DisasterCast main application
 Run with: streamlit run app.py
 """
 
+import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
-import numpy as np
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from utils.data_loader import get_houston_data, get_la_data, get_city_summary
+from utils.data_loader import get_houston_data, get_la_data, get_city_summary, ESCALATION_RATES
 from utils.cost_engine import (
     project_next_event_cost,
     compound_inaction_cost,
@@ -210,17 +210,34 @@ fig_hist.add_trace(go.Bar(
     textposition="outside",
 ))
 
-# Add trend line
-z = np.polyfit(df[year_col], df[cost_col], 1)
-p = np.poly1d(z)
-x_trend = list(df[year_col]) + [2028, 2031]
-fig_hist.add_trace(go.Scatter(
-    x=x_trend,
-    y=[p(x) for x in x_trend],
-    mode="lines",
-    name="Cost trend (if nothing changes)",
-    line=dict(color="#e67e22", dash="dash", width=2),
-))
+# Trend line — exclude catastrophic outliers (Harvey, Palisades)
+# to show underlying escalation pattern across typical major events
+# Outlier threshold: events more than 3x the median cost
+median_cost = df[cost_col].median()
+trend_df = df[df[cost_col] <= median_cost * 10].copy()
+
+if len(trend_df) >= 2:
+    z = np.polyfit(trend_df[year_col], trend_df[cost_col], 1)
+    p = np.poly1d(z)
+    # Ensure trend is upward — if negative slope, use escalation rate instead
+    if z[0] < 0:
+        # Use real escalation rate from data
+        base = trend_df[cost_col].mean()
+        rate = ESCALATION_RATES.get(city, 0.145)
+        start_year = int(trend_df[year_col].min())
+        x_trend = list(range(start_year, 2032))
+        y_trend = [base * (1 + rate) ** (yr - start_year) for yr in x_trend]
+    else:
+        x_trend = list(range(int(trend_df[year_col].min()), 2032))
+        y_trend = [max(p(x), 0) for x in x_trend]
+
+    fig_hist.add_trace(go.Scatter(
+        x=x_trend,
+        y=y_trend,
+        mode="lines",
+        name="Cost trend (if nothing changes)",
+        line=dict(color="#e67e22", dash="dash", width=2),
+    ))
 
 fig_hist.update_layout(
     title=f"{city} — historic {disaster_type.lower()} damage costs",
@@ -337,7 +354,7 @@ if st.button("Generate AI prevention recommendations", type="primary"):
             st.session_state["recs"] = recs
             st.session_state["city_for_recs"] = city
         except Exception as e:
-            st.error(f"API error: {e}. Check your ANTHROPIC_API_KEY.")
+            st.error(f"API error: {e}. Check your GOOGLE_API_KEY in the .env file.")
             st.session_state["recs"] = None
 
 if st.session_state.get("recs") and st.session_state.get("city_for_recs") == city:
@@ -438,3 +455,4 @@ Data sources: FEMA OpenFEMA, CalFire, Harris County HCFCD, LA County CEO Dashboa
 Rice Kinder Institute, OECD 2025 | AI: Claude (Anthropic)
 </p>
 """, unsafe_allow_html=True)
+
