@@ -7,6 +7,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
+import numpy as np
 import os
 import sys
 
@@ -437,5 +438,3 @@ Data sources: FEMA OpenFEMA, CalFire, Harris County HCFCD, LA County CEO Dashboa
 Rice Kinder Institute, OECD 2025 | AI: Claude (Anthropic)
 </p>
 """, unsafe_allow_html=True)
-
-import numpy as np
