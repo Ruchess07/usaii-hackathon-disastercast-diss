@@ -16,6 +16,62 @@ Covers Houston (floods) and Los Angeles (wildfires) with real FEMA OpenFEMA data
 
 ---
 
+## Quick Start (Windows PowerShell)
+
+```powershell
+# 1. Install Python dependencies
+pip install -r requirements.txt
+
+# 2. Install frontend dependencies
+cd frontend
+npm install
+cd ..
+
+# 3. Add GROQ API key to .env
+# Create a .env file in project root with:
+# GROQ_API_KEY=gsk_...
+
+# 4. Terminal 1 — Start backend
+python -m uvicorn backend.main:app --reload --port 8000
+
+# 5. Terminal 2 — Start frontend
+cd frontend
+npm run dev
+```
+
+Opens at **http://localhost:3000**
+
+---
+
+## Architecture
+
+```
+disastercast-diss/
+├── backend/
+│   ├── main.py               # FastAPI — 18 REST endpoints
+│   └── requirements.txt
+├── frontend/                 # Next.js 16 + React 19 + Tailwind v4
+│   └── src/
+│       ├── app/              # 5 routes (/, /dashboard, /interventions, /compare, 404)
+│       ├── components/       # 17 UI + chart components
+│       ├── lib/              # API client, report generator, persistence, utils
+│       └── types/            # TypeScript definitions
+├── utils/                    # Python core engine (~1,500 lines)
+│   ├── data_loader.py        # CSV loading with caching
+│   ├── pattern_inference.py  # scikit-learn LinearRegression trend detection
+│   ├── cost_engine.py        # Cost projection + social cost multipliers
+│   ├── rag_layer.py          # RAG retrieval from interventions DB
+│   ├── ai_engine.py          # GROQ API enrichment + policy briefs
+│   └── report_generator.py   # ReportLab PDF generation
+├── data/                     # 9 curated CSV files (events, zones, population, infrastructure)
+├── datasets/                 # 35 raw FEMA API download files
+├── tests/                    # 19 pytest unit tests
+├── requirements.txt          # Python dependencies
+└── pyproject.toml            # Project metadata
+```
+
+---
+
 ## Setup
 
 ### 1. Clone and install
@@ -25,46 +81,86 @@ cd usaii-hackathon-disastercast-diss
 pip install -r requirements.txt
 ```
 
-### 2. Get a free Gemini API key
-Go to: https://aistudio.google.com/app/apikey
-Takes 2 minutes, no credit card required.
+### 2. Get a free GROQ API key
+Go to: https://console.groq.com/keys
+Sign up (free tier, no credit card required), create an API key starting with `gsk_`.
 
 ### 3. Create a .env file
-Create a file called `.env` in the project root:
+Create `.env` in the project root:
 ```
-GOOGLE_API_KEY=your_key_here
+GROQ_API_KEY=gsk_your_key_here
 ```
 
-### 4. Run the app
+### 4. Install frontend dependencies
 ```bash
-streamlit run app.py
+cd frontend
+npm install
+cd ..
 ```
-Opens at http://localhost:8501
+
+### 5. Run the app (two terminals)
+
+**Terminal 1 — Backend:**
+```bash
+python -m uvicorn backend.main:app --reload --port 8000
+```
+
+**Terminal 2 — Frontend:**
+```powershell
+cd frontend
+npm run dev
+```
+
+Opens at **http://localhost:3000**
 
 ---
 
-## Deploy to Streamlit Cloud
+## Features
 
-1. Push to GitHub
-2. Go to share.streamlit.io
-3. Connect your repo, set `app.py` as the main file
-4. Add `GOOGLE_API_KEY` in the Streamlit secrets manager
-5. Deploy — shareable link in 2 minutes
+| Feature | Backend | Frontend |
+|---------|---------|----------|
+| City selection (Houston / LA) | `GET /api/cities` | Landing page with city cards |
+| Cost summary | `GET /api/cities/{slug}/summary` | 4-metric summary bar |
+| Historical damage chart | `GET /api/cities/{slug}/events` | Canvas bar chart with trend line |
+| Time-range filter | `?since=&until=` on events/compounding | Year-range dropdowns |
+| Cost breakdown + sources | `GET /api/cities/{slug}/projection` | 6 metric cards with collapsible sources |
+| Zone heatmap | `GET /api/cities/{slug}/zones` | SVG grid colored by damage intensity |
+| Infrastructure gaps | `GET /api/cities/{slug}/infrastructure` | Warning cards for <50% capacity projects |
+| What-if scenario sliders | `POST /api/cities/{slug}/scenario` | Real-time infra/population sliders |
+| Compounding cost chart | `GET /api/cities/{slug}/compounding` | Canvas bar chart (4 future events) |
+| Pattern explanation | `GET /api/cities/{slug}/pattern-explanation` | GROQ-enriched plain-language summary |
+| AI recommendations | `POST /api/cities/{slug}/recommendations` | GROQ-enriched intervention cards |
+| AI policy brief | `POST /api/cities/{slug}/policy-brief` | GROQ-generated budget-committee brief |
+| Save report | `GET /api/cities/{slug}/report` | Text download + PDF download |
+| City comparison | `GET /api/compare` | Side-by-side table + dual-bar charts |
+| Data freshness | `GET /api/cities/{slug}/data-freshness` | Footer badge with age indicator |
+| Keyboard navigation | Keys 1-4 | Nav bar jump-to-step |
+| Accessibility | `prefers-reduced-motion` | CSS disables all animations |
 
 ---
 
-## Project structure
+## API Endpoints (18 total)
 
-```
-disastercast/
-├── app.py                  # Main Streamlit app — 3 screens
-├── requirements.txt        # All dependencies
-├── README.md
-└── utils/
-    ├── data_loader.py      # Real FEMA data — Houston + LA events
-    ├── cost_engine.py      # Cost projection and escalation model
-    └── ai_engine.py        # Gemini API — recommendations + policy brief
-```
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/health` | Health check |
+| GET | `/api/cities` | List supported cities |
+| GET | `/api/compare` | Side-by-side city comparison |
+| GET | `/api/cities/{slug}/summary` | Aggregate damage statistics |
+| GET | `/api/cities/{slug}/events` | Historical disaster events |
+| GET | `/api/cities/{slug}/zones` | Damage by zone / neighborhood |
+| GET | `/api/cities/{slug}/population` | Population growth data |
+| GET | `/api/cities/{slug}/affected-zones` | Most affected zone names |
+| GET | `/api/cities/{slug}/infrastructure` | Infrastructure project capacity |
+| GET | `/api/cities/{slug}/data-freshness` | Dataset last-updated timestamps |
+| GET | `/api/cities/{slug}/projection` | Next-event cost projection |
+| POST | `/api/cities/{slug}/scenario` | What-if scenario simulation |
+| GET | `/api/cities/{slug}/compounding` | Multi-event compounding projection |
+| GET | `/api/cities/{slug}/interventions` | Top interventions by ROI |
+| GET | `/api/cities/{slug}/pattern-explanation` | Cost pattern explanation |
+| POST | `/api/cities/{slug}/recommendations` | AI prevention recommendations |
+| POST | `/api/cities/{slug}/policy-brief` | AI policy brief |
+| GET | `/api/cities/{slug}/report` | PDF report download |
 
 ---
 
@@ -72,11 +168,12 @@ disastercast/
 
 | Dataset | Source | Used for |
 |---------|--------|----------|
-| FEMA OpenFEMA HousingAssistanceOwners | fema.gov/about/openfema/data-sets | Houston and LA damage by event — 159,412 records |
+| FEMA OpenFEMA HousingAssistanceOwners | fema.gov/about/openfema/data-sets | Houston and LA damage by event — 24K+ records |
 | FEMA DisasterDeclarationsSummaries | fema.gov/about/openfema/data-sets | Disaster metadata, incident types, dates |
 | Harris County HCFCD | hcfcd.org | Houston flood zone infrastructure |
 | OECD 2025 | oecd.org | AI and disaster damage cost methodology |
 | Urban Institute | urban.org | Disaster to homelessness causal research |
+| US Census ACS | census.gov | Population growth in vulnerable zones |
 
 ---
 
@@ -91,9 +188,11 @@ Cost escalation rates derived from FEMA data analysis:
 - Houston: **14.5% per year** (2019 to 2024 post-Harvey trend)
 - Los Angeles: **29.7% per year** (2018 to 2025 trajectory)
 
-Model used: **log-linear regression (exponential growth)** — the same approach used by FEMA, World Bank, and Swiss Re for catastrophe cost modelling. Disaster costs compound, not accumulate linearly, because each event without infrastructure change leaves greater vulnerability for the next.
+Model used: **scikit-learn LinearRegression** — the same approach used by FEMA, World Bank, and Swiss Re for catastrophe cost modelling. Disaster costs compound, not accumulate linearly, because each event without infrastructure change leaves greater vulnerability for the next.
 
-All projections shown with confidence ranges. Human expert review recommended before policy action.
+AI: **GROQ** (llama-3.3-70b-versatile) via OpenAI-compatible API — enriches RAG results with location-specific detail and generates plain-language policy briefs.
+
+All projections powered by real data. Human expert review recommended before policy action.
 
 ---
 
@@ -102,6 +201,16 @@ All projections shown with confidence ranges. Human expert review recommended be
 **Risk:** Projections based on historic patterns may underestimate costs in rapidly urbanising zones where population density has grown faster than the damage baseline reflects.
 
 **Mitigation:** Confidence intervals are displayed on every projection, not buried in footnotes. When population growth in a vulnerable zone exceeds 15% since the last major event, the tool widens the confidence interval and flags a human review recommendation. AI generates the analysis — the budget committee makes the decision.
+
+---
+
+## Testing
+
+```powershell
+python -m pytest tests/ -v
+```
+
+19 tests covering data loading, cost engine, and pattern inference.
 
 ---
 

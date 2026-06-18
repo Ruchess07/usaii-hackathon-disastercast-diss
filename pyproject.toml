@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "disastercast-diss"
+version = "1.0.0"
+description = "Disaster Intervention Strategy Simulator — AI-powered cost of inaction simulator for flood and wildfire prevention policy"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "USAII Global AI Hackathon 2026 — Graduate Track"},
+]
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "pandas",
+    "openai",
+    "python-dotenv",
+    "numpy",
+    "scikit-learn",
+]

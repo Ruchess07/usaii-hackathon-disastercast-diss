@@ -1,4 +1,14 @@
 .env
+.env.local
 __pycache__/
 *.pyc
 *.csv
+.agents/
+skills
+.pytest_cache
+node_modules/
+.next/
+reports/
+*.egg-info/
+dist/
+build/

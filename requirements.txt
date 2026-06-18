@@ -1,7 +1,7 @@
-streamlit
+fastapi>=0.110
+uvicorn>=0.29
 pandas
-plotly
-google-generativeai
+openai
 python-dotenv
 numpy
 scikit-learn
