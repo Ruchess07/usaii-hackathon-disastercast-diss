@@ -31,10 +31,12 @@ function DashboardContent() {
   const [rangeUntil, setRangeUntil] = useState<number>(2025);
 
   useEffect(() => {
-    setCity(loadState("city", cityParam || "houston"));
+    const fromUrl = cityParam || null;
+    const saved = loadState<string | null>("city", null);
+    setCity(fromUrl || saved || "houston");
     setRangeSince(loadState("rangeSince", 2015));
     setRangeUntil(loadState("rangeUntil", 2025));
-  }, []);
+  }, [cityParam]);
 
   useEffect(() => {
     if (city) saveState("city", city);
