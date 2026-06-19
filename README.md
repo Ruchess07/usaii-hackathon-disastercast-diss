@@ -48,23 +48,23 @@ Opens at **http://localhost:3000**
 ```
 disastercast-diss/
 ├── backend/
-│   ├── main.py               # FastAPI — 18 REST endpoints
+│   ├── main.py               # FastAPI — 22 REST endpoints
 │   └── requirements.txt
 ├── frontend/                 # Next.js 16 + React 19 + Tailwind v4
 │   └── src/
-│       ├── app/              # 5 routes (/, /dashboard, /interventions, /compare, 404)
-│       ├── components/       # 17 UI + chart components
-│       ├── lib/              # API client, report generator, persistence, utils
+│       ├── app/              # 6 routes (/, /dashboard, /interventions, /compare, /compare/scenario, /glossary)
+│       ├── components/       # 24 UI + chart components
+│       ├── lib/              # API client, report generator, persistence
 │       └── types/            # TypeScript definitions
 ├── utils/                    # Python core engine (~1,500 lines)
 │   ├── data_loader.py        # CSV loading with caching
 │   ├── pattern_inference.py  # scikit-learn LinearRegression trend detection
 │   ├── cost_engine.py        # Cost projection + social cost multipliers
 │   ├── rag_layer.py          # RAG retrieval from interventions DB
-│   ├── ai_engine.py          # GROQ API enrichment + policy briefs
+│   ├── ai_engine.py          # GROQ API enrichment + policy briefs + glossary
 │   └── report_generator.py   # ReportLab PDF generation
 ├── data/                     # 9 curated CSV files (events, zones, population, infrastructure)
-├── datasets/                 # 35 raw FEMA API download files
+├── datasets/                 # Raw FEMA API download files
 ├── tests/                    # 19 pytest unit tests
 ├── requirements.txt          # Python dependencies
 └── pyproject.toml            # Project metadata
@@ -121,12 +121,18 @@ Opens at **http://localhost:3000**
 |---------|---------|----------|
 | City selection (Houston / LA) | `GET /api/cities` | Landing page with city cards |
 | Cost summary | `GET /api/cities/{slug}/summary` | 4-metric summary bar |
-| Historical damage chart | `GET /api/cities/{slug}/events` | Canvas bar chart with trend line |
+| Historical damage chart | `GET /api/cities/{slug}/events` | Canvas bar chart with trend line, animated timeline (play/pause/step) |
 | Time-range filter | `?since=&until=` on events/compounding | Year-range dropdowns |
 | Cost breakdown + sources | `GET /api/cities/{slug}/projection` | 6 metric cards with collapsible sources |
+| Renter vs owner breakdown | `GET /api/cities/{slug}/events` | Stacked Canvas bar chart per event |
 | Zone heatmap | `GET /api/cities/{slug}/zones` | SVG grid colored by damage intensity |
-| Infrastructure gaps | `GET /api/cities/{slug}/infrastructure` | Warning cards for <50% capacity projects |
+| Zone escalation chart | `GET /api/cities/{slug}/zones` | Multi-line Canvas chart per zone across event years |
+| Zone compounding grid | `GET /api/cities/{slug}/zones` | Year-by-zone heatmap grid |
+| Harvey watershed damage | `GET /api/cities/houston/watersheds` | Canvas horizontal bar chart (10 watersheds) |
+| Infrastructure capacity | `GET /api/cities/{slug}/infrastructure` | Progress-bar cards per project |
+| Intervention scorecard | `GET /api/cities/{slug}/intervention-effectiveness` | Sortable table with real outcomes |
 | What-if scenario sliders | `POST /api/cities/{slug}/scenario` | Real-time infra/population sliders |
+| Cross-city scenario compare | `POST /api/cities/{slug}/scenario` | Side-by-side scenario results for both cities |
 | Compounding cost chart | `GET /api/cities/{slug}/compounding` | Canvas bar chart (4 future events) |
 | Pattern explanation | `GET /api/cities/{slug}/pattern-explanation` | GROQ-enriched plain-language summary |
 | AI recommendations | `POST /api/cities/{slug}/recommendations` | GROQ-enriched intervention cards |
@@ -134,24 +140,28 @@ Opens at **http://localhost:3000**
 | Save report | `GET /api/cities/{slug}/report` | Text download + PDF download |
 | City comparison | `GET /api/compare` | Side-by-side table + dual-bar charts |
 | Data freshness | `GET /api/cities/{slug}/data-freshness` | Footer badge with age indicator |
-| Keyboard navigation | Keys 1-4 | Nav bar jump-to-step |
+| Disaster glossary | `GET /api/glossary` | Collapsible definition list page |
+| Keyboard navigation | Keys 1-5 | Nav bar jump-to-step |
 | Accessibility | `prefers-reduced-motion` | CSS disables all animations |
+| localStorage persistence | — | Saves city + range settings across sessions |
 
 ---
 
-## API Endpoints (18 total)
+## API Endpoints (22 total)
 
 | Method | Route | Description |
 |--------|-------|-------------|
 | GET | `/health` | Health check |
 | GET | `/api/cities` | List supported cities |
 | GET | `/api/compare` | Side-by-side city comparison |
+| GET | `/api/glossary` | Disaster policy jargon definitions |
 | GET | `/api/cities/{slug}/summary` | Aggregate damage statistics |
 | GET | `/api/cities/{slug}/events` | Historical disaster events |
 | GET | `/api/cities/{slug}/zones` | Damage by zone / neighborhood |
 | GET | `/api/cities/{slug}/population` | Population growth data |
 | GET | `/api/cities/{slug}/affected-zones` | Most affected zone names |
 | GET | `/api/cities/{slug}/infrastructure` | Infrastructure project capacity |
+| GET | `/api/cities/{slug}/intervention-effectiveness` | Intervention records with real outcomes |
 | GET | `/api/cities/{slug}/data-freshness` | Dataset last-updated timestamps |
 | GET | `/api/cities/{slug}/projection` | Next-event cost projection |
 | POST | `/api/cities/{slug}/scenario` | What-if scenario simulation |
@@ -161,6 +171,9 @@ Opens at **http://localhost:3000**
 | POST | `/api/cities/{slug}/recommendations` | AI prevention recommendations |
 | POST | `/api/cities/{slug}/policy-brief` | AI policy brief |
 | GET | `/api/cities/{slug}/report` | PDF report download |
+| GET | `/api/cities/{slug}/homelessness` | Real HUD PIT count homelessness trend |
+| GET | `/api/cities/houston/watersheds` | Watershed-level Harvey damage summary |
+| GET | `/api/cities/houston/damage-map` | Property-level Harvey damage points (GeoJSON) |
 
 ---
 
@@ -174,6 +187,7 @@ Opens at **http://localhost:3000**
 | OECD 2025 | oecd.org | AI and disaster damage cost methodology |
 | Urban Institute | urban.org | Disaster to homelessness causal research |
 | US Census ACS | census.gov | Population growth in vulnerable zones |
+| HUD PIT Count | hud.gov | Annual homelessness count data (2007-2024) |
 
 ---
 
@@ -200,7 +214,7 @@ All projections powered by real data. Human expert review recommended before pol
 
 **Risk:** Projections based on historic patterns may underestimate costs in rapidly urbanising zones where population density has grown faster than the damage baseline reflects.
 
-**Mitigation:** Confidence intervals are displayed on every projection, not buried in footnotes. When population growth in a vulnerable zone exceeds 15% since the last major event, the tool widens the confidence interval and flags a human review recommendation. AI generates the analysis — the budget committee makes the decision.
+**Mitigation:** When population growth in a vulnerable zone exceeds 15% since the last major event, the tool flags a human review recommendation. AI generates the analysis — the budget committee makes the decision.
 
 ---
 
@@ -214,6 +228,14 @@ python -m pytest tests/ -v
 
 ---
 
-## Licence
+## Tools Used
 
-Built for USAII Global AI Hackathon 2026. Data sourced from US federal open data portals under public domain licence.
+- **OpenCode** — AI-assisted development environment
+- **Claude Code** — AI pair programming assistant
+- GROQ (llama-3.3-70b-versatile) — LLM inference for AI features
+- FastAPI + Uvicorn — Python REST backend
+- Next.js 16 + React 19 + Tailwind CSS v4 — Frontend framework
+- scikit-learn — LinearRegression pattern inference
+- ReportLab — Server-side PDF report generation
+- Leaflet + react-leaflet — Harvey property damage map
+- Recharts — Homelessness trend chart
