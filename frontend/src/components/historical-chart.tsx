@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { getCityEvents } from "@/lib/api";
 import type { DisasterEvent } from "@/types";
 import { ChartSkeleton } from "@/components/ui/skeleton";
@@ -16,8 +16,11 @@ export function HistoricalChart({ slug, since, until }: Props) {
   const [loading, setLoading] = useState(true);
   const [showBiggest, setShowBiggest] = useState(true);
   const [logScale, setLogScale] = useState(false);
+  const [animIndex, setAnimIndex] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -27,6 +30,51 @@ export function HistoricalChart({ slug, since, until }: Props) {
   const displayEvents = showBiggest
     ? events
     : events.filter((e) => e.total_damage_bn < Math.max(...events.map((x) => x.total_damage_bn)));
+
+  const visibleEvents = animIndex !== null
+    ? displayEvents.slice(0, animIndex)
+    : displayEvents;
+
+  useEffect(() => {
+    setAnimIndex(null);
+    setIsPlaying(false);
+  }, [events]);
+
+  useEffect(() => {
+    if (isPlaying) {
+      intervalRef.current = setInterval(() => {
+        setAnimIndex((prev) => {
+          const total = displayEvents.length;
+          if (prev === null) return 1;
+          if (prev >= total) { setIsPlaying(false); return total; }
+          return prev + 1;
+        });
+      }, 1200);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isPlaying, displayEvents.length]);
+
+  const stepForward = useCallback(() => {
+    setAnimIndex((prev) => {
+      const total = displayEvents.length;
+      if (prev === null) return 1;
+      return Math.min(prev + 1, total);
+    });
+  }, [displayEvents.length]);
+
+  const stepBack = useCallback(() => {
+    setAnimIndex((prev) => {
+      if (prev === null || prev <= 1) return null;
+      return prev - 1;
+    });
+  }, []);
+
+  const resetAnim = useCallback(() => {
+    setAnimIndex(null);
+    setIsPlaying(false);
+  }, []);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -52,19 +100,18 @@ export function HistoricalChart({ slug, since, until }: Props) {
 
     ctx.clearRect(0, 0, w, h);
 
-    if (!displayEvents.length) return;
+    if (!visibleEvents.length) return;
 
-    const years = displayEvents.map((e) => e.year);
-    const costs = displayEvents.map((e) => e.total_damage_bn);
+    const years = visibleEvents.map((e) => e.year);
+    const costs = visibleEvents.map((e) => e.total_damage_bn);
     const maxCost = Math.max(...costs) * 1.15;
     const minYear = Math.min(...years) - 1;
-    const maxYear = Math.max(...years) + 1;
+    const maxYear = Math.max(...displayEvents.map((e) => e.year)) + 1;
 
     if (maxCost <= 0 || maxYear - minYear <= 0) return;
 
     const xPos = (yr: number) => pad.left + ((yr - minYear) / (maxYear - minYear)) * chartW;
 
-    // Grid helpers for log scale
     const logMin = Math.log10(Math.max(Math.min(...costs) * 0.5, 0.01));
     const logMax = Math.log10(maxCost);
 
@@ -112,9 +159,9 @@ export function HistoricalChart({ slug, since, until }: Props) {
       }
     }
 
-    // Trend line — only in linear mode with enough points
-    if (!logScale && displayEvents.length >= 2) {
-      const n = displayEvents.length;
+    // Trend line
+    if (!logScale && visibleEvents.length >= 2) {
+      const n = visibleEvents.length;
       const sumX = years.reduce((a, b) => a + b, 0);
       const sumY = costs.reduce((a, b) => a + b, 0);
       const sumXY = years.reduce((a, y, i) => a + y * costs[i], 0);
@@ -136,9 +183,9 @@ export function HistoricalChart({ slug, since, until }: Props) {
       ctx.fillText("Trend", xPos(trendEnd) - 20, yPos(slope * trendEnd + intercept) - 6);
     }
 
-    // Bars — group by year for side-by-side layout
+    // Bars
     const yearGroups: Record<number, DisasterEvent[]> = {};
-    displayEvents.forEach((e) => {
+    visibleEvents.forEach((e) => {
       if (!yearGroups[e.year]) yearGroups[e.year] = [];
       yearGroups[e.year].push(e);
     });
@@ -156,18 +203,25 @@ export function HistoricalChart({ slug, since, until }: Props) {
         const y = yPos(e.total_damage_bn);
         const barH = (pad.top + chartH) - y;
 
-        const gradient = ctx.createLinearGradient(bx, y, bx, pad.top + chartH);
+        const allEventsThisYear = displayEvents.filter((de) => de.year === yr);
+        const allSubW = barW * 0.7 / allEventsThisYear.length;
+        const allOffset = (allEventsThisYear.length - 1) * allSubW / 2;
+        const allBaseX = xPos(yr);
+        const actualIdx = allEventsThisYear.findIndex((ae) => ae.event_id === e.event_id);
+        const actualBx = allBaseX - allOffset + actualIdx * allSubW;
+
+        const gradient = ctx.createLinearGradient(actualBx, y, actualBx, pad.top + chartH);
         gradient.addColorStop(0, "#9F2F2D");
         gradient.addColorStop(1, "#FDEBEC");
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.roundRect(bx, y, subW, Math.max(0, barH), [3, 3, 0, 0]);
+        ctx.roundRect(actualBx, y, allSubW, Math.max(0, barH), [3, 3, 0, 0]);
         ctx.fill();
 
         ctx.fillStyle = "#1E293B";
         ctx.font = "11px Geist Sans, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(`$${e.total_damage_bn.toFixed(1)}B`, bx + subW / 2, y - 6);
+        ctx.fillText(`$${e.total_damage_bn.toFixed(1)}B`, actualBx + allSubW / 2, y - 6);
       });
 
       ctx.fillStyle = "#787774";
@@ -175,11 +229,14 @@ export function HistoricalChart({ slug, since, until }: Props) {
       ctx.textAlign = "center";
       ctx.fillText(String(yr), baseX, pad.top + chartH + 16);
     });
-  }, [displayEvents, logScale]);
+  }, [visibleEvents, displayEvents, logScale]);
 
   const biggestName = events.length
     ? events.reduce((a, b) => (a.total_damage_bn > b.total_damage_bn ? a : b)).event_name
     : "largest";
+
+  const totalCount = displayEvents.length;
+  const currentStep = animIndex ?? totalCount;
 
   return (
     <div ref={containerRef} className="bg-white border border-[#EAEAEA] rounded-[8px] p-5 relative">
@@ -211,7 +268,60 @@ export function HistoricalChart({ slug, since, until }: Props) {
       {loading && events.length === 0 ? (
         <ChartSkeleton />
       ) : (
-        <canvas ref={canvasRef} className="w-full" />
+        <div>
+          <canvas ref={canvasRef} className="w-full" />
+          {displayEvents.length >= 2 && (
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={resetAnim}
+                  className="text-[9px] px-2 py-1 rounded bg-[#F0EFEA] text-[#787774] hover:bg-[#E5E4DF] transition-colors"
+                  title="Reset"
+                >
+                  ⏮
+                </button>
+                <button
+                  onClick={stepBack}
+                  disabled={currentStep <= 1}
+                  className="text-[9px] px-2 py-1 rounded bg-[#F0EFEA] text-[#787774] hover:bg-[#E5E4DF] disabled:opacity-30 transition-colors"
+                  title="Step back"
+                >
+                  ◀
+                </button>
+                <button
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className={`text-[9px] px-3 py-1 rounded font-medium transition-colors ${
+                    isPlaying
+                      ? "bg-[#1E293B] text-white"
+                      : "bg-[#F0EFEA] text-[#787774] hover:bg-[#E5E4DF]"
+                  }`}
+                  title={isPlaying ? "Pause" : "Play"}
+                >
+                  {isPlaying ? "⏸ Pause" : "▶ Play"}
+                </button>
+                <button
+                  onClick={stepForward}
+                  disabled={currentStep >= totalCount}
+                  className="text-[9px] px-2 py-1 rounded bg-[#F0EFEA] text-[#787774] hover:bg-[#E5E4DF] disabled:opacity-30 transition-colors"
+                  title="Step forward"
+                >
+                  ▶
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-20 h-1 bg-[#F0EFEA] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#1E293B] rounded-full transition-all"
+                    style={{ width: `${(currentStep / totalCount) * 100}%` }}
+                  />
+                </div>
+                <span className="text-[9px] text-[#787774] font-mono">
+                  {currentStep}/{totalCount}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       )}
       <p className="text-[10px] text-[#787774] mt-2">Data source: FEMA OpenFEMA</p>
     </div>

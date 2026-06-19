@@ -182,3 +182,27 @@ export interface Watershed {
 export function getHoustonWatersheds(): Promise<Watershed[]> {
   return fetchJson(`/api/cities/houston/watersheds`);
 }
+
+export function getGlossary(): Promise<Record<string, string>> {
+  return fetchJson("/api/glossary");
+}
+
+export interface InterventionRecord {
+  city: string;
+  disaster_type: string;
+  intervention_id: string;
+  intervention_name: string;
+  description: string;
+  estimated_cost_usd: number;
+  estimated_damage_reduction_usd: number;
+  roi_ratio: number;
+  source: string;
+  source_url: string;
+  year_implemented: number;
+  actual_outcome: string;
+  implementation_time: string;
+}
+
+export function getCityInterventionRecords(slug: string): Promise<InterventionRecord[]> {
+  return fetchJson(`/api/cities/${slug}/intervention-effectiveness`);
+}

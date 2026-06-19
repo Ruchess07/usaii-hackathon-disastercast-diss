@@ -8,6 +8,7 @@ import { MetricCard } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChartSkeleton } from "@/components/ui/skeleton";
+import { InterventionScorecard } from "@/components/intervention-scorecard";
 import { generateReport } from "@/lib/report";
 import { saveState, loadState } from "@/lib/persist";
 import {
@@ -259,6 +260,8 @@ function InterventionsContent() {
           <p className="text-xs text-[#956400] leading-relaxed">{patternText}</p>
         </div>
       )}
+
+      <InterventionScorecard slug={city} />
 
       {/* Generate AI recs */}
       <div className="flex flex-wrap items-center gap-3">

@@ -9,6 +9,7 @@ const navItems = [
   { href: "/dashboard", label: "Cost of Inaction", step: "02" },
   { href: "/interventions", label: "Priorities", step: "03" },
   { href: "/compare", label: "Compare", step: "04" },
+  { href: "/glossary", label: "Glossary", step: "05" },
 ];
 
 const KEY_MAP: Record<string, string> = {
@@ -16,6 +17,7 @@ const KEY_MAP: Record<string, string> = {
   "2": "/dashboard",
   "3": "/interventions",
   "4": "/compare",
+  "5": "/glossary",
 };
 
 export function Nav() {

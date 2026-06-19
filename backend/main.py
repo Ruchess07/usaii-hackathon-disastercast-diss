@@ -230,6 +230,14 @@ def city_interventions(city_slug: str, n: int = 6):
     return recs
 
 
+@app.get("/api/cities/{city_slug}/intervention-effectiveness")
+def city_intervention_effectiveness(city_slug: str):
+    city_name, disaster = _resolve_city(city_slug)
+    df = load_interventions_db(city_name)
+    if df.empty:
+        return []
+    return json.loads(df.to_json(orient="records"))
+
 @app.get("/api/cities/{city_slug}/pattern-explanation")
 def city_pattern_explanation(city_slug: str):
     city_name, _ = _resolve_city(city_slug)

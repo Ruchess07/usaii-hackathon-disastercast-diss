@@ -6,13 +6,18 @@ import { Suspense, useEffect, useState } from "react";
 import { CitySummaryBar } from "@/components/city-summary-bar";
 import { AffectedZonesBadge } from "@/components/affected-zones-badge";
 import { HistoricalChart } from "@/components/historical-chart";
+import { RenterOwnerBreakdown } from "@/components/renter-owner-breakdown";
 import { CostBreakdown } from "@/components/cost-breakdown";
 import { CompoundingChart } from "@/components/compounding-chart";
 import { PatternBox } from "@/components/pattern-box";
 import { ZoneHeatmap } from "@/components/zone-heatmap";
+import { ZoneEscalationChart } from "@/components/zone-escalation-chart";
+import { ZoneCompoundingGrid } from "@/components/zone-compounding-grid";
 import { HomelessnessTrendChart } from "@/components/homelessness-trend-chart";
 import { HarveyDamageMap } from "@/components/harvey-damage-map";
+import { WatershedChart } from "@/components/watershed-chart";
 import { ScenarioSliders } from "@/components/scenario-sliders";
+import { InfrastructureCapacity } from "@/components/infrastructure-capacity";
 import { Button } from "@/components/ui/button";
 import { TimeRangeSelector } from "@/components/time-range-selector";
 import { saveState, loadState } from "@/lib/persist";
@@ -57,6 +62,7 @@ function DashboardContent() {
       {/* City summary + zones */}
       <CitySummaryBar slug={city} />
       <AffectedZonesBadge slug={city} />
+      <InfrastructureCapacity slug={city} />
 
       {/* Time range + Historical chart */}
       <TimeRangeSelector
@@ -67,6 +73,7 @@ function DashboardContent() {
         onChange={(s, u) => { setRangeSince(s); setRangeUntil(u); }}
       />
       <HistoricalChart slug={city} since={rangeSince} until={rangeUntil} />
+      <RenterOwnerBreakdown slug={city} />
 
       {/* Cost breakdown */}
       <CostBreakdown slug={city} />
@@ -75,13 +82,20 @@ function DashboardContent() {
       <PatternBox slug={city} />
 
       {/* Zone heatmap */}
-      {city !== "houston" && <ZoneHeatmap slug={city} />}
+      <ZoneHeatmap slug={city} />
+      <ZoneEscalationChart slug={city} />
+      <ZoneCompoundingGrid slug={city} />
 
       {/* Homelessness trend — real HUD PIT count data */}
       <HomelessnessTrendChart slug={city} cityName={cityName} />
 
       {/* Harvey property damage map — Houston only, real GeoJSON */}
-      {city === "houston" && <HarveyDamageMap />}
+      {city === "houston" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <HarveyDamageMap />
+          <WatershedChart />
+        </div>
+      )}
 
       {/* Scenario sliders */}
       <ScenarioSliders slug={city} />

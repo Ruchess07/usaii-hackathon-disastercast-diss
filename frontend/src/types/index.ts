@@ -23,8 +23,12 @@ export interface DisasterEvent {
   total_damage_bn: number;
   total_damage_usd: number;
   infrastructure_cost: number;
+  owner_registrations?: number;
+  renter_registrations?: number;
   total_displaced: number;
   renter_pct: number;
+  total_owner_ihp_amount?: number;
+  total_renter_ihp_amount?: number;
   incident_begin: string;
   incident_end: string;
   disaster_type: string;
