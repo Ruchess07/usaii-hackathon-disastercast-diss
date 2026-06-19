@@ -14,21 +14,32 @@ interface Props {
 export function HistoricalChart({ slug, since, until }: Props) {
   const [events, setEvents] = useState<DisasterEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showBiggest, setShowBiggest] = useState(true);
+  const [logScale, setLogScale] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLoading(true);
     getCityEvents(slug, since, until).then(setEvents).finally(() => setLoading(false));
   }, [slug, since, until]);
 
+  const displayEvents = showBiggest
+    ? events
+    : events.filter((e) => e.total_damage_bn < Math.max(...events.map((x) => x.total_damage_bn)));
+
   useEffect(() => {
-    if (!events.length || !canvasRef.current) return;
+    if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
     const rect = canvasRef.current.getBoundingClientRect();
-    const w = rect.width;
+    let w = rect.width;
+    if (w === 0) {
+      w = containerRef.current?.getBoundingClientRect().width ?? 600;
+      if (w === 0) w = 600;
+    }
     const h = 280;
     canvasRef.current.width = w * dpr;
     canvasRef.current.height = h * dpr;
@@ -41,33 +52,69 @@ export function HistoricalChart({ slug, since, until }: Props) {
 
     ctx.clearRect(0, 0, w, h);
 
-    const years = events.map((e) => e.year);
-    const costs = events.map((e) => e.total_damage_bn);
+    if (!displayEvents.length) return;
+
+    const years = displayEvents.map((e) => e.year);
+    const costs = displayEvents.map((e) => e.total_damage_bn);
     const maxCost = Math.max(...costs) * 1.15;
     const minYear = Math.min(...years) - 1;
     const maxYear = Math.max(...years) + 1;
 
+    if (maxCost <= 0 || maxYear - minYear <= 0) return;
+
     const xPos = (yr: number) => pad.left + ((yr - minYear) / (maxYear - minYear)) * chartW;
-    const yPos = (c: number) => pad.top + chartH - (c / maxCost) * chartH;
+
+    // Grid helpers for log scale
+    const logMin = Math.log10(Math.max(Math.min(...costs) * 0.5, 0.01));
+    const logMax = Math.log10(maxCost);
+
+    const yPosLinear = (c: number) => pad.top + chartH - (c / maxCost) * chartH;
+    const yPosLog = (c: number) => {
+      if (c <= 0) return pad.top + chartH;
+      return pad.top + chartH - ((Math.log10(c) - logMin) / (logMax - logMin)) * chartH;
+    };
+    const yPos = logScale ? yPosLog : yPosLinear;
 
     // Grid lines
     ctx.strokeStyle = "#F0F0F0";
     ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-      const y = pad.top + (i / 4) * chartH;
-      ctx.beginPath();
-      ctx.moveTo(pad.left, y);
-      ctx.lineTo(w - pad.right, y);
-      ctx.stroke();
-      ctx.fillStyle = "#787774";
-      ctx.font = "10px Geist Mono, monospace";
-      ctx.textAlign = "right";
-      ctx.fillText(`$${((maxCost / 4) * (4 - i)).toFixed(0)}B`, pad.left - 8, y + 3);
+
+    if (logScale) {
+      const logTicks = [0.1, 1, 10, 100, 1000];
+      logTicks.forEach((tick) => {
+        if (tick < Math.min(...costs) * 0.5 || tick > maxCost * 1.5) return;
+        const y = yPosLog(tick);
+        if (y < pad.top || y > pad.top + chartH) return;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(w - pad.right, y);
+        ctx.stroke();
+        ctx.fillStyle = "#787774";
+        ctx.font = "10px Geist Mono, monospace";
+        ctx.textAlign = "right";
+        ctx.fillText(tick >= 1 ? `$${tick.toFixed(0)}B` : `$${tick.toFixed(1)}B`, pad.left - 8, y + 3);
+      });
+      ctx.fillStyle = "#956400";
+      ctx.font = "9px Geist Sans, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("log scale", pad.left, pad.top - 6);
+    } else {
+      for (let i = 0; i <= 4; i++) {
+        const y = pad.top + (i / 4) * chartH;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(w - pad.right, y);
+        ctx.stroke();
+        ctx.fillStyle = "#787774";
+        ctx.font = "10px Geist Mono, monospace";
+        ctx.textAlign = "right";
+        ctx.fillText(`$${((maxCost / 4) * (4 - i)).toFixed(0)}B`, pad.left - 8, y + 3);
+      }
     }
 
-    // Trend line (linear regression)
-    if (events.length >= 2) {
-      const n = events.length;
+    // Trend line — only in linear mode with enough points
+    if (!logScale && displayEvents.length >= 2) {
+      const n = displayEvents.length;
       const sumX = years.reduce((a, b) => a + b, 0);
       const sumY = costs.reduce((a, b) => a + b, 0);
       const sumXY = years.reduce((a, y, i) => a + y * costs[i], 0);
@@ -89,38 +136,83 @@ export function HistoricalChart({ slug, since, until }: Props) {
       ctx.fillText("Trend", xPos(trendEnd) - 20, yPos(slope * trendEnd + intercept) - 6);
     }
 
-    // Bars
-    const barW = Math.min(48, chartW / events.length * 0.6);
-    events.forEach((e, i) => {
-      const x = xPos(e.year) - barW / 2;
-      const y = yPos(e.total_damage_bn);
-      const barH = chartH - (y - pad.top);
+    // Bars — group by year for side-by-side layout
+    const yearGroups: Record<number, DisasterEvent[]> = {};
+    displayEvents.forEach((e) => {
+      if (!yearGroups[e.year]) yearGroups[e.year] = [];
+      yearGroups[e.year].push(e);
+    });
 
-      const gradient = ctx.createLinearGradient(x, y, x, pad.top + chartH);
-      gradient.addColorStop(0, "#9F2F2D");
-      gradient.addColorStop(1, "#FDEBEC");
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.roundRect(x, y, barW, barH, [3, 3, 0, 0]);
-      ctx.fill();
+    const barW = Math.min(48, chartW / displayEvents.length * 0.6);
 
-      // Label
-      ctx.fillStyle = "#1E293B";
-      ctx.font = "11px Geist Sans, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(`$${e.total_damage_bn.toFixed(0)}B`, x + barW / 2, y - 6);
+    Object.entries(yearGroups).forEach(([yrStr, group]) => {
+      const yr = Number(yrStr);
+      const subW = barW * 0.7 / group.length;
+      const offset = (group.length - 1) * subW / 2;
+      const baseX = xPos(yr);
+
+      group.forEach((e, i) => {
+        const bx = baseX - offset + i * subW;
+        const y = yPos(e.total_damage_bn);
+        const barH = (pad.top + chartH) - y;
+
+        const gradient = ctx.createLinearGradient(bx, y, bx, pad.top + chartH);
+        gradient.addColorStop(0, "#9F2F2D");
+        gradient.addColorStop(1, "#FDEBEC");
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.roundRect(bx, y, subW, Math.max(0, barH), [3, 3, 0, 0]);
+        ctx.fill();
+
+        ctx.fillStyle = "#1E293B";
+        ctx.font = "11px Geist Sans, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(`$${e.total_damage_bn.toFixed(1)}B`, bx + subW / 2, y - 6);
+      });
+
       ctx.fillStyle = "#787774";
       ctx.font = "9px Geist Mono, monospace";
-      ctx.fillText(String(e.year), x + barW / 2, pad.top + chartH + 16);
+      ctx.textAlign = "center";
+      ctx.fillText(String(yr), baseX, pad.top + chartH + 16);
     });
-  }, [events]);
+  }, [displayEvents, logScale]);
 
-  if (loading) return <ChartSkeleton />;
+  const biggestName = events.length
+    ? events.reduce((a, b) => (a.total_damage_bn > b.total_damage_bn ? a : b)).event_name
+    : "largest";
 
   return (
-    <div className="bg-white border border-[#EAEAEA] rounded-[8px] p-5">
-      <p className="text-xs font-medium text-[#1E293B] mb-3">Historic damage costs</p>
-      <canvas ref={canvasRef} className="w-full" />
+    <div ref={containerRef} className="bg-white border border-[#EAEAEA] rounded-[8px] p-5 relative">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <p className="text-xs font-medium text-[#1E293B]">Historic damage costs</p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowBiggest(!showBiggest)}
+            className={`text-[10px] px-2.5 py-1 rounded-full font-medium transition-colors ${
+              showBiggest
+                ? "bg-[#1E293B] text-white"
+                : "bg-[#F0EFEA] text-[#787774]"
+            }`}
+          >
+            {showBiggest ? `With ${biggestName}` : "Without largest"}
+          </button>
+          <button
+            onClick={() => setLogScale(!logScale)}
+            className={`text-[10px] px-2.5 py-1 rounded-full font-medium transition-colors ${
+              logScale
+                ? "bg-[#1E293B] text-white"
+                : "bg-[#F0EFEA] text-[#787774]"
+            }`}
+          >
+            {logScale ? "Log" : "Linear"}
+          </button>
+        </div>
+      </div>
+      {loading && events.length === 0 ? (
+        <ChartSkeleton />
+      ) : (
+        <canvas ref={canvasRef} className="w-full" />
+      )}
       <p className="text-[10px] text-[#787774] mt-2">Data source: FEMA OpenFEMA</p>
     </div>
   );

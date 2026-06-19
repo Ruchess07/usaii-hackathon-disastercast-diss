@@ -57,6 +57,8 @@ export interface CostProjection {
   homelessness_source: string;
   total_social_cost_mn: number;
   total_projected_cost_bn: number;
+  newly_homeless_est?: number;
+  pct_increase_real?: number;
 }
 
 export interface Savings {

@@ -19,10 +19,17 @@ import { saveState, loadState } from "@/lib/persist";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
-  const city = searchParams.get("city") || loadState("city", "houston");
+  const cityParam = searchParams.get("city");
+  const [city, setCity] = useState<string>("houston");
 
-  const [rangeSince, setRangeSince] = useState<number>(loadState("rangeSince", 2015));
-  const [rangeUntil, setRangeUntil] = useState<number>(loadState("rangeUntil", 2025));
+  const [rangeSince, setRangeSince] = useState<number>(2015);
+  const [rangeUntil, setRangeUntil] = useState<number>(2025);
+
+  useEffect(() => {
+    setCity(loadState("city", cityParam || "houston"));
+    setRangeSince(loadState("rangeSince", 2015));
+    setRangeUntil(loadState("rangeUntil", 2025));
+  }, []);
 
   useEffect(() => {
     if (city) saveState("city", city);

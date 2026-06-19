@@ -134,9 +134,21 @@ export interface DisasterHomelessImpact {
   note?: string;
 }
 
+export interface DisasterHomelessEvent {
+  year: number;
+  event: string;
+  before_year: number;
+  before_count: number;
+  after_year: number | null;
+  after_count: number | null;
+  pct_change: number | null;
+  note: string;
+}
+
 export function getCityHomelessness(slug: string): Promise<{
   trend: HomelessYear[];
   disaster_impact: DisasterHomelessImpact;
+  all_disaster_events: DisasterHomelessEvent[];
 }> {
   return fetchJson(`/api/cities/${slug}/homelessness`);
 }

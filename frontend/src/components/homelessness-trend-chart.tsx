@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from "recharts";
-import { getCityHomelessness } from "@/lib/api";
+import { getCityHomelessness, DisasterHomelessEvent } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface HomelessYear {
@@ -23,21 +23,10 @@ interface DisasterImpact {
   note?: string;
 }
 
-interface DisasterEvent {
-  year: number;
-  event: string;
-  before_year: number;
-  before_count: number;
-  after_year: number | null;
-  after_count: number | null;
-  pct_change: number | null;
-  note: string;
-}
-
 export function HomelessnessTrendChart({ slug, cityName }: { slug: string; cityName: string }) {
   const [trend, setTrend] = useState<HomelessYear[]>([]);
   const [impact, setImpact] = useState<DisasterImpact | null>(null);
-  const [allEvents, setAllEvents] = useState<DisasterEvent[]>([]);
+  const [allEvents, setAllEvents] = useState<DisasterHomelessEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
