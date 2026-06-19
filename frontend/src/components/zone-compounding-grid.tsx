@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { getCityZones } from "@/lib/api";
 import type { ZoneData } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,8 +52,8 @@ export function ZoneCompoundingGrid({ slug }: { slug: string }) {
             </div>
           ))}
           {zoneNames.map((name) => (
-            <>
-              <div key={name} className="text-[10px] text-[#1E293B] font-medium truncate pr-2 self-center">
+            <Fragment key={name}>
+              <div className="text-[10px] text-[#1E293B] font-medium truncate pr-2 self-center">
                 {name}
               </div>
               {years.map((yr) => {
@@ -71,7 +71,7 @@ export function ZoneCompoundingGrid({ slug }: { slug: string }) {
                   </div>
                 );
               })}
-            </>
+            </Fragment>
           ))}
         </div>
       </div>

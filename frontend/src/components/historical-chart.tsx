@@ -20,7 +20,6 @@ export function HistoricalChart({ slug, since, until }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -35,26 +34,27 @@ export function HistoricalChart({ slug, since, until }: Props) {
     ? displayEvents.slice(0, animIndex)
     : displayEvents;
 
+  const totalRef = useRef(displayEvents.length);
+  totalRef.current = displayEvents.length;
+
   useEffect(() => {
     setAnimIndex(null);
     setIsPlaying(false);
   }, [events]);
 
   useEffect(() => {
-    if (isPlaying) {
-      intervalRef.current = setInterval(() => {
-        setAnimIndex((prev) => {
-          const total = displayEvents.length;
-          if (prev === null) return 1;
-          if (prev >= total) { setIsPlaying(false); return total; }
-          return prev + 1;
-        });
-      }, 1200);
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [isPlaying, displayEvents.length]);
+    if (!isPlaying) return;
+    const id = setInterval(() => {
+      setAnimIndex((prev) => {
+        const total = totalRef.current;
+        if (total === 0) return null;
+        if (prev === null || prev < 1) return 1;
+        if (prev >= total) { setIsPlaying(false); return total; }
+        return prev + 1;
+      });
+    }, 1200);
+    return () => clearInterval(id);
+  }, [isPlaying]);
 
   const stepForward = useCallback(() => {
     setAnimIndex((prev) => {
