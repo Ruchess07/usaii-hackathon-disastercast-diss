@@ -30,9 +30,11 @@ from utils.report_generator import generate_report_pdf
 
 app = FastAPI(title="DisasterCast API", version="1.0.0")
 
+CORS_ORIGINS = ["*"] if os.environ.get("RENDER") else ["http://localhost:3000", "http://127.0.0.1:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
