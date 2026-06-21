@@ -1,0 +1,15 @@
+.env
+.env.local
+__pycache__/
+*.pyc
+datasets/**/*.csv
+!data/**/*.csv
+.agents/
+skills
+.pytest_cache
+node_modules/
+.next/
+reports/
+*.egg-info/
+dist/
+build/data/harvey_damage_lite.json 
